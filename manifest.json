@@ -1,0 +1,56 @@
+{
+  "manifest_version": 2,
+  "name": "Clickbait Detector",
+  "version": "1.1.0",
+  "description": "Sprawdza czy nagłówki linków są clickbaitowe używając AI",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "notifications",
+    "webRequest",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "Clickbait Detector Settings",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "commands": {
+    "toggle-mode": {
+      "suggested_key": { "default": "Alt+Shift+C" },
+      "description": "Włącz/wyłącz tryb sprawdzania linków"
+    },
+    "check-link": {
+      "suggested_key": { "default": "Alt+C" },
+      "description": "Sprawdź link pod kursorem"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

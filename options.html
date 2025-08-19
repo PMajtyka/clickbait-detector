@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Clickbait Detector - Ustawienia</title>
+    <link rel="stylesheet" href="options.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 Clickbait Detector - Ustawienia</h1>
+        </header>
+        
+        <main>
+            <section class="card">
+                <h2>Konfiguracja API</h2>
+                
+                <div class="form-group">
+                    <label for="apiKey">API Key:</label>
+                    <input type="password" id="apiKey" placeholder="Wprowadź swój API key">
+                    <small>Klucz API do usługi LLM (np. OpenRouter, HuggingFace)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="apiEndpoint">Dostawca API:</label>
+                    <select id="apiEndpoint">
+                        <option value="https://openrouter.ai/api/v1/chat/completions">OpenRouter</option>
+                        <option value="https://api-inference.huggingface.co/models/">HuggingFace</option>
+                        <option value="custom">Własny endpoint</option>
+                    </select>
+                    <input type="url" id="customEndpoint" placeholder="https://api.example.com/v1/chat/completions" class="hidden">
+                </div>
+                
+                <div class="form-group">
+                    <label for="model">Model:</label>
+                    <input type="text" id="model" placeholder="np. microsoft/phi-3-mini-128k-instruct:free">
+                    <small>Nazwa modelu zgodna z dokumentacją API</small>
+                </div>
+            </section>
+            
+            <section class="card">
+                <h2>Personalizacja promptu</h2>
+                
+                <div class="form-group">
+                    <label for="customPrompt">Własny prompt:</label>
+                    <textarea id="customPrompt" rows="6" placeholder="Opcjonalny własny prompt. Zostaw puste aby użyć domyślnego."></textarea>
+                    <small>Zmienne: {title}, {header}, {content}</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="language">Język odpowiedzi:</label>
+                    <select id="language">
+                        <option value="pl">Polski</option>
+                        <option value="en">English</option>
+                        <option value="de">Deutsch</option>
+                        <option value="fr">Français</option>
+                    </select>
+                </div>
+            </section>
+            
+            <section class="card">
+                <h2>Zaawansowane</h2>
+                
+                <div class="form-group">
+                    <label for="maxTokens">Maksymalne tokeny:</label>
+                    <input type="number" id="maxTokens" min="50" max="1000" value="200">
+                </div>
+                
+                <div class="form-group">
+                    <label for="temperature">Temperature:</label>
+                    <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.3">
+                    <span id="temperatureValue">0.3</span>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="cacheResults"> 
+                        Cache wyników (szybsze powtórne sprawdzanie)
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="debugMode"> 
+                        Tryb debug (więcej informacji w konsoli)
+                    </label>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <button id="saveSettings" class="primary">Zapisz ustawienia</button>
+            <button id="resetSettings">Przywróć domyślne</button>
+            <button id="testConnection">Testuj połączenie</button>
+            
+            <div id="status" class="status hidden"></div>
+        </footer>
+    </div>
+    
+    <script src="options.js"></script>
+</body>
+</html>

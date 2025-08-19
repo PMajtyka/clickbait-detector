@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Clickbait Detector</h1>
+        </div>
+        
+        <div class="status" id="status">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span id="statusText">Sprawdzanie statusu...</span>
+        </div>
+        
+        <div class="section">
+            <h3>Instrukcja użycia:</h3>
+            <ol>
+                <li>Skonfiguruj API key poniżej</li>
+                <li>Wciśnij <kbd>Alt+Shift+C</kbd> aby włączyć tryb sprawdzania</li>
+                <li>Najedź na link i wciśnij <kbd>Alt+C</kbd> aby sprawdzić</li>
+            </ol>
+        </div>
+        
+        <div class="section">
+            <label for="apiKey">API Key:</label>
+            <input type="password" id="apiKey" placeholder="Wprowadź swój API key">
+            <button id="saveApiKey">Zapisz</button>
+        </div>
+        
+        <div class="section">
+            <label for="apiEndpoint">API Endpoint:</label>
+            <select id="apiEndpoint">
+                <option value="https://openrouter.ai/api/v1/chat/completions">OpenRouter</option>
+                <option value="https://api-inference.huggingface.co/models/">HuggingFace</option>
+                <option value="custom">Własny endpoint</option>
+            </select>
+            <input type="url" id="customEndpoint" placeholder="https://api.example.com/v1/chat/completions" style="display:none;">
+        </div>
+        
+        <div class="section">
+            <label for="model">Model:</label>
+            <input type="text" id="model" placeholder="np. microsoft/phi-3-mini-128k-instruct:free">
+        </div>
+        
+        <div class="actions">
+            <button id="openOptions">Zaawansowane ustawienia</button>
+            <button id="testApi">Testuj API</button>
+        </div>
+        
+        <div class="footer">
+            <small>Alt+Shift+C - włącz/wyłącz | Alt+C - sprawdź link</small>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
