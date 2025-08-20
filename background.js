@@ -1,3 +1,4 @@
+// Background script - zmodyfikowany
 // Background script - obsługuje API calls i komunikację
 
 let isCheckingEnabled = false;
@@ -55,8 +56,40 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(error => sendResponse({ error: error.message }));
     return true; // Asynchroniczny response
   }
+  // NOWE: Obsługa sprawdzania z ekstraktowaną treścią
+  else if (message.action === 'checkLinkWithContent') {
+    checkClickbaitWithContent(message.content)
+      .then(result => sendResponse(result))
+      .catch(error => sendResponse({ error: error.message }));
+    return true;
+  }
 });
 
+// NOWA FUNKCJA: Sprawdź clickbait z już ekstraktowaną treścią
+async function checkClickbaitWithContent(content) {
+  try {
+    // Pobierz ustawienia API
+    const settings = await browser.storage.local.get(['apiKey', 'apiEndpoint', 'model']);
+    
+    if (!settings.apiKey) {
+      throw new Error('Brak skonfigurowanego API key. Przejdź do ustawień rozszerzenia.');
+    }
+    
+    if (!content.title) {
+      throw new Error('Nie znaleziono tytułu strony');
+    }
+    
+    // Wywołaj API LLM bezpośrednio z przekazaną treścią
+    const llmResponse = await callLLM(settings, content);
+    return llmResponse;
+    
+  } catch (error) {
+    console.error('Error checking clickbait with content:', error);
+    throw error;
+  }
+}
+
+// ULEPSZONA FUNKCJA: Lepsza ekstrakcja z użyciem fetch + readability
 async function checkClickbait(url) {
   try {
     // Pobierz ustawienia API
@@ -73,7 +106,7 @@ async function checkClickbait(url) {
     }
     
     const html = await response.text();
-    const content = extractContentFromHTML(html);
+    const content = await extractContentFromHTML(html, url);
     
     if (!content.title) {
       throw new Error('Nie znaleziono tytułu strony');
@@ -89,49 +122,147 @@ async function checkClickbait(url) {
   }
 }
 
-function extractContentFromHTML(html) {
+// ULEPSZONA FUNKCJA: Lepsza ekstrakcja treści z użyciem Readability
+async function extractContentFromHTML(html, url) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   
-  // Ekstraktuj tytuł
-  const title = doc.querySelector('title')?.textContent?.trim() || '';
+  // Ustaw base URL dla względnych linków
+  const base = doc.createElement('base');
+  base.href = url;
+  doc.head.appendChild(base);
+  
+  // Ekstraktuj tytuł z kilku źródeł
+  const title = getTitle(doc);
   
   // Ekstraktuj główny nagłówek
-  const header = doc.querySelector('h1')?.textContent?.trim() || '';
+  const header = getMainHeader(doc);
   
-  // Ekstraktuj główną treść (uproszczona wersja)
-  let content = '';
+  // Użyj uproszczonej wersji algorytmu Readability
+  const content = extractMainContent(doc);
   
+  // Dodatkowe metadane
+  const metadata = extractMetadata(doc);
+  
+  return { 
+    title, 
+    header, 
+    content: content.substring(0, 15000), // Ogranicz do 15000 znaków
+    ...metadata 
+  };
+}
+
+function getTitle(doc) {
+  // Próbuj różne źródła tytułu
+  const sources = [
+    () => doc.querySelector('meta[property="og:title"]')?.getAttribute('content'),
+    () => doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content'),
+    () => doc.querySelector('h1')?.textContent?.trim(),
+    () => doc.querySelector('title')?.textContent?.trim()
+  ];
+  
+  for (const source of sources) {
+    const title = source();
+    if (title && title.length > 0) {
+      return title;
+    }
+  }
+  
+  return '';
+}
+
+function getMainHeader(doc) {
+  const selectors = [
+    'h1.entry-title',
+    'h1.post-title', 
+    'h1.article-title',
+    '.entry-header h1',
+    'article h1',
+    'main h1',
+    'h1'
+  ];
+  
+  for (const selector of selectors) {
+    const element = doc.querySelector(selector);
+    if (element) {
+      return element.textContent?.trim() || '';
+    }
+  }
+  
+  return '';
+}
+
+// Uproszczona implementacja algorytmu Readability
+function extractMainContent(doc) {
   // Usuń niepotrzebne elementy
-  const elementsToRemove = doc.querySelectorAll('script, style, nav, header, footer, aside, .advertisement, .ads');
+  const elementsToRemove = doc.querySelectorAll(`
+    script, style, nav, header, footer, aside, 
+    .advertisement, .ads, .social-share, .comments,
+    .sidebar, .menu, .navigation, .breadcrumb,
+    [class*="ad"], [id*="ad"], [class*="social"], 
+    [class*="share"], [class*="comment"]
+  `);
+  
   elementsToRemove.forEach(el => el.remove());
   
-  // Spróbuj znaleźć główną treść
-  const articleSelectors = ['article', 'main', '.content', '.post', '.entry', 'div[class*="content"]'];
+  // Znajdź główną treść artykułu
+  const contentSelectors = [
+    'article .entry-content',
+    'article .post-content', 
+    'article .content',
+    '.post-body',
+    '.entry-content',
+    '.post-content',
+    'article',
+    'main',
+    '[role="main"]',
+    '.content'
+  ];
+  
   let mainContent = null;
   
-  for (const selector of articleSelectors) {
-    mainContent = doc.querySelector(selector);
-    if (mainContent) break;
+  for (const selector of contentSelectors) {
+    const element = doc.querySelector(selector);
+    if (element && element.textContent.trim().length > 200) {
+      mainContent = element;
+      break;
+    }
   }
   
   if (mainContent) {
-    content = mainContent.textContent?.trim() || '';
-  } else {
-    // Fallback - weź wszystkie paragrafy
-    const paragraphs = doc.querySelectorAll('p');
-    content = Array.from(paragraphs)
-      .map(p => p.textContent?.trim())
-      .filter(text => text && text.length > 50) // Filtruj krótkie paragrafy
-      .join(' ');
+    return cleanTextContent(mainContent);
   }
   
-  // Ogranic długość treści (API może mieć limity)
-  if (content.length > 3000) {
-    content = content.substring(0, 3000) + '...';
-  }
+  // Fallback - znajdź największy blok tekstu
+  return findLargestTextBlock(doc);
+}
+
+function cleanTextContent(element) {
+  // Usuń puste linii i nadmiarowe spacje
+  return element.textContent
+    ?.replace(/\s+/g, ' ')
+    ?.replace(/\n\s*\n/g, '\n')
+    ?.trim() || '';
+}
+
+function findLargestTextBlock(doc) {
+  const paragraphs = Array.from(doc.querySelectorAll('p, div'))
+    .map(el => el.textContent?.trim() || '')
+    .filter(text => text.length > 100)
+    .sort((a, b) => b.length - a.length);
   
-  return { title, header, content };
+  return paragraphs.slice(0, 10).join(' '); // Weź 10 największych bloków
+}
+
+function extractMetadata(doc) {
+  return {
+    description: doc.querySelector('meta[name="description"]')?.getAttribute('content') || '',
+    keywords: doc.querySelector('meta[name="keywords"]')?.getAttribute('content') || '',
+    author: doc.querySelector('meta[name="author"]')?.getAttribute('content') || 
+            doc.querySelector('.author')?.textContent?.trim() || '',
+    publishDate: doc.querySelector('meta[property="article:published_time"]')?.getAttribute('content') ||
+                 doc.querySelector('time')?.getAttribute('datetime') || ''
+  };
 }
 
 async function callLLM(settings, content) {
@@ -153,8 +284,8 @@ async function callLLM(settings, content) {
         role: 'user',
         content: prompt
       }],
-      max_tokens: 200,
-      temperature: 0.3
+      max_tokens: 300, // Zwiększ dla lepszych odpowiedzi
+      temperature: 0.2 // Zmniejsz dla większej konsystencji
     })
   });
   
@@ -174,19 +305,23 @@ async function callLLM(settings, content) {
   };
 }
 
+// ULEPSZONA FUNKCJA: Lepszy prompt z metadanymi
 function createPrompt(content) {
-  return `Sprawdź, czy poniższy tytuł i nagłówek (jeśli występuje) odpowiada rzeczywistej treści artykułu, a artykuł rzetelnie opisuje wydarzenie, czy jest to clickbait.
+  const context = content.author ? `\nAUTOR: ${content.author}` : '';
+  const description = content.description ? `\nOPIS: ${content.description}` : '';
+  
+  return `Sprawdź, czy poniższy tytuł artykułu jest clickbaitowy (wprowadza w błąd, przesadza, używa sensacyjnych określeń bez pokrycia w treści).
 
 TYTUŁ: "${content.title}"
-${content.header ? `NAGŁÓWEK: "${content.header}"` : ''}
+${content.header && content.header !== content.title ? `NAGŁÓWEK: "${content.header}"` : ''}${context}${description}
 
 TREŚĆ ARTYKUŁU:
 ${content.content}
 
-Odpowiedz w formacie:
+Odpowiedz DOKŁADNIE w tym formacie:
 CLICKBAIT: [TAK/NIE]
-UZASADNIENIE: [krótkie uzasadnienie w 1-2 zdaniach]
-${content.header || content.title ? 'LEPSZY TYTUŁ: [jeśli clickbait - zaproponuj lepszy, rzetelny tytuł]' : ''}
+UZASADNIENIE: [krótkie uzasadnienie w 1-2 zdaniach, dlaczego tytuł jest/nie jest clickbaitowy]
+LEPSZY TYTUŁ: [jeśli clickbait - zaproponuj lepszy, rzetelny tytuł bez sensacji]
 
-Odpowiadaj po polsku i bądź zwięzły.`;
+Odpowiadaj po polsku i bądź precyzyjny.`;
 }
